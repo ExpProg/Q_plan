@@ -25,7 +25,7 @@
 
 1. **Клонирование репозитория**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/ExpProg/Q_plan.git
    cd QPlan
    ```
 
