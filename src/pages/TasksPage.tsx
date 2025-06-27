@@ -234,17 +234,39 @@ export function TasksPage({
     try {
       if (editingTask?.id) {
         // Editing existing task
-        const updatedTask: Task = {
-          ...editingTask,
-          ...taskData,
-          updatedAt: new Date(),
-        };
-        await onTaskEdit(updatedTask);
+        // Получаем реальный ID задачи (убираем суффикс варианта если есть)
+        const realTaskId = editingTask.id.split('-variant-')[0];
+        const isVirtualTask = editingTask.id.includes('-variant-');
         
-        // Сохраняем оценки по ролям для существующей задачи
+        let taskToUpdate: Task;
+        
+        if (isVirtualTask) {
+          // Если это виртуальная задача, находим оригинальную
+          const originalTask = tasks.find(t => t.id === realTaskId);
+          if (!originalTask) {
+            throw new Error('Оригинальная задача не найдена');
+          }
+          taskToUpdate = {
+            ...originalTask,
+            ...taskData,
+            id: realTaskId, // Используем реальный ID
+            updatedAt: new Date(),
+          };
+        } else {
+          // Если это реальная задача, обновляем её напрямую
+          taskToUpdate = {
+            ...editingTask,
+            ...taskData,
+            updatedAt: new Date(),
+          };
+        }
+        
+        await onTaskEdit(taskToUpdate);
+        
+        // Сохраняем оценки по ролям для существующей задачи, используя реальный ID
         await Promise.all(
           Object.entries(roleCapacities).map(([roleId, capacity]) =>
-            onTaskRoleCapacitySave(editingTask.id, roleId, capacity)
+            onTaskRoleCapacitySave(realTaskId, roleId, capacity)
           )
         );
       } else {
@@ -273,7 +295,6 @@ export function TasksPage({
 
   const handleTaskEdit = (task: Task) => {
     setEditingTask(task);
-    onTaskEdit(task);
     setTaskDialogOpen(true);
   };
 

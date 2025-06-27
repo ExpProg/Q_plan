@@ -130,7 +130,9 @@ function App() {
   };
 
   const getTaskRoleCapacity = (taskId: string, roleId: string) => {
-    const capacity = taskRoleCapacities.find(trc => trc.taskId === taskId && trc.roleId === roleId);
+    // Получаем реальный ID задачи (убираем суффикс варианта если есть)
+    const realTaskId = taskId.split('-variant-')[0];
+    const capacity = taskRoleCapacities.find(trc => trc.taskId === realTaskId && trc.roleId === roleId);
     return capacity?.capacity || 0;
   };
 
@@ -157,10 +159,13 @@ function App() {
 
   const handleTaskDelete = async (taskIds: string[]) => {
     try {
-      await tasksService.delete(taskIds);
-      setTasks(prev => prev.filter(task => !taskIds.includes(task.id)));
+      // Получаем реальные ID задач (убираем суффикс варианта если есть)
+      const realTaskIds = taskIds.map(id => id.split('-variant-')[0]);
+      
+      await tasksService.delete(realTaskIds);
+      setTasks(prev => prev.filter(task => !realTaskIds.includes(task.id)));
       // Также удаляем capacity записи для удаленных задач
-      setTaskRoleCapacities(prev => prev.filter(trc => !taskIds.includes(trc.taskId)));
+      setTaskRoleCapacities(prev => prev.filter(trc => !realTaskIds.includes(trc.taskId)));
     } catch (error) {
       console.error('Ошибка удаления задач:', error);
     }
