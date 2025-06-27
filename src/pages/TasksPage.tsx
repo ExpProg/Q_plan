@@ -26,15 +26,15 @@ interface TasksPageProps {
   selectedQuarterId: string;
   selectedTeamId: string;
   viewMode: 'express' | 'detailed';
-  onTaskSave: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onTaskEdit: (task: Task) => void;
-  onTaskDelete: (taskIds: string[]) => void;
-  onTaskRoleCapacitySave: (taskId: string, roleId: string, capacity: number) => void;
-  onTeamCapacitySave: (teamId: string, quarterId: string, capacity: number) => void;
-  onPlanVariantSave: (variant: Omit<PlanVariant, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onPlanVariantEdit: (variant: PlanVariant) => void;
-  onPlanVariantDelete: (variantId: string) => void;
-  onSetMainVariant: (variantId: string) => void;
+  onTaskSave: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<Task | null>;
+  onTaskEdit: (task: Task) => Promise<void>;
+  onTaskDelete: (taskIds: string[]) => Promise<void>;
+  onTaskRoleCapacitySave: (taskId: string, roleId: string, capacity: number) => Promise<void>;
+  onTeamCapacitySave: (teamId: string, quarterId: string, capacity: number) => Promise<void>;
+  onPlanVariantSave: (variant: Omit<PlanVariant, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onPlanVariantEdit: (variant: PlanVariant) => Promise<void>;
+  onPlanVariantDelete: (variantId: string) => Promise<void>;
+  onSetMainVariant: (variantId: string) => Promise<void>;
   getTeamById: (teamId: string) => Team | undefined;
   getQuarterById: (quarterId: string) => Quarter | undefined;
   getTeamCapacity: (teamId: string, quarterId: string) => number;
@@ -230,42 +230,43 @@ export function TasksPage({
     return analysis;
   }, [plannedTasks, roles, getTaskRoleCapacity, selectedTeamId, selectedQuarterId, getTeamRoleCapacity]);
 
-  const handleTaskSave = (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, roleCapacities: Record<string, number>) => {
-    if (editingTask?.id) {
-      // Editing existing task
-      const updatedTask: Task = {
-        ...editingTask,
-        ...taskData,
-        updatedAt: new Date(),
-      };
-      onTaskEdit(updatedTask);
-      
-      // Сохраняем оценки по ролям для существующей задачи
-      Object.entries(roleCapacities).forEach(([roleId, capacity]) => {
-        onTaskRoleCapacitySave(editingTask.id, roleId, capacity);
-      });
-    } else {
-      // Creating new task
-      onTaskSave(taskData);
-      
-      // Для новой задачи сохраняем оценки по ролям после создания
-      // Используем setTimeout, чтобы дать время задаче сохраниться
-      setTimeout(() => {
-        const newTaskId = tasks.find(t => 
-          t.title === taskData.title && 
-          t.teamId === taskData.teamId &&
-          t.description === taskData.description
-        )?.id;
+  const handleTaskSave = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, roleCapacities: Record<string, number>) => {
+    try {
+      if (editingTask?.id) {
+        // Editing existing task
+        const updatedTask: Task = {
+          ...editingTask,
+          ...taskData,
+          updatedAt: new Date(),
+        };
+        await onTaskEdit(updatedTask);
         
-        if (newTaskId) {
-          Object.entries(roleCapacities).forEach(([roleId, capacity]) => {
-            if (capacity > 0) {
-              onTaskRoleCapacitySave(newTaskId, roleId, capacity);
-            }
-          });
+        // Сохраняем оценки по ролям для существующей задачи
+        await Promise.all(
+          Object.entries(roleCapacities).map(([roleId, capacity]) =>
+            onTaskRoleCapacitySave(editingTask.id, roleId, capacity)
+          )
+        );
+      } else {
+        // Creating new task
+        const newTask = await onTaskSave(taskData);
+        
+        if (newTask) {
+          // Сохраняем оценки по ролям для новой задачи
+          await Promise.all(
+            Object.entries(roleCapacities).map(([roleId, capacity]) => {
+              if (capacity > 0) {
+                return onTaskRoleCapacitySave(newTask.id, roleId, capacity);
+              }
+              return Promise.resolve();
+            })
+          );
         }
-      }, 100);
+      }
+    } catch (error) {
+      console.error('Ошибка сохранения задачи:', error);
     }
+    
     setEditingTask(undefined);
     setTaskDialogOpen(false);
   };
@@ -276,63 +277,71 @@ export function TasksPage({
     setTaskDialogOpen(true);
   };
 
-  const openNewTaskDialog = () => {
-    // Создать основной вариант если его нет
-    if (currentVariants.length === 0) {
-      onPlanVariantSave({
-        name: 'Основной',
-        quarterId: selectedQuarterId,
-        teamId: selectedTeamId,
-        isExpress: viewMode === 'express',
-        isMain: true,
-      });
-    }
+  const openNewTaskDialog = async () => {
+    try {
+      // Создать основной вариант если его нет
+      if (currentVariants.length === 0) {
+        await onPlanVariantSave({
+          name: 'Основной',
+          quarterId: selectedQuarterId,
+          teamId: selectedTeamId,
+          isExpress: viewMode === 'express',
+          isMain: true,
+        });
+      }
 
-    setEditingTask({
-      id: '',
-      title: '',
-      description: '',
-      teamId: selectedTeamId,
-      planVariantId: selectedVariant?.id,
-      isPlanned: false,
-      impact: 5,
-      confidence: 5,
-      ease: 5,
-      expressEstimate: undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as Task);
-    setTaskDialogOpen(true);
+      setEditingTask({
+        id: '',
+        title: '',
+        description: '',
+        teamId: selectedTeamId,
+        planVariantId: selectedVariant?.id,
+        isPlanned: false,
+        impact: 5,
+        confidence: 5,
+        ease: 5,
+        expressEstimate: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Task);
+      setTaskDialogOpen(true);
+    } catch (error) {
+      console.error('Ошибка при создании варианта плана:', error);
+    }
   };
 
-  const openNewPlannedTaskDialog = () => {
-    // Создать основной вариант если его нет
-    if (currentVariants.length === 0) {
-      onPlanVariantSave({
-        name: 'Основной',
-        quarterId: selectedQuarterId,
-        teamId: selectedTeamId,
-        isExpress: viewMode === 'express',
-        isMain: true,
-      });
-    }
+  const openNewPlannedTaskDialog = async () => {
+    try {
+      // Создать основной вариант если его нет
+      if (currentVariants.length === 0) {
+        await onPlanVariantSave({
+          name: 'Основной',
+          quarterId: selectedQuarterId,
+          teamId: selectedTeamId,
+          isExpress: viewMode === 'express',
+          isMain: true,
+        });
+      }
 
-    setEditingTask({
-      id: '',
-      title: '',
-      description: '',
-      teamId: selectedTeamId,
-      quarterId: selectedQuarterId,
-      planVariantId: selectedVariant?.id,
-      isPlanned: true,
-      impact: 5,
-      confidence: 5,
-      ease: 5,
-      expressEstimate: undefined,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as Task);
-    setTaskDialogOpen(true);
+      setEditingTask({
+        id: '',
+        title: '',
+        description: '',
+        teamId: selectedTeamId,
+        quarterId: selectedQuarterId,
+        planVariantId: selectedVariant?.id,
+        isPlanned: true,
+        impact: 5,
+        confidence: 5,
+        ease: 5,
+        expressEstimate: undefined,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as Task);
+      setTaskDialogOpen(true);
+    } catch (error) {
+      console.error('Ошибка при создании варианта плана:', error);
+    }
   };
 
   const openTeamCapacityDialog = () => {
@@ -359,13 +368,10 @@ export function TasksPage({
     // Мы не будем изменять состояние в handleDragOver
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
-
-    
     if (!over || !selectedVariant) {
-      
       setActiveTask(null);
       return;
     }
@@ -382,10 +388,7 @@ export function TasksPage({
       activeTask = allVirtualTasks.find(t => t.id === activeId);
     }
     
-
-    
     if (!activeTask) {
-      
       setActiveTask(null);
       return;
     }
@@ -398,46 +401,48 @@ export function TasksPage({
     if (overId === 'planned-tasks' || overId === 'backlog-tasks') {
       const isMovingToPlanned = overId === 'planned-tasks';
       
+      try {
+        // Создать основной вариант если его нет
+        if (currentVariants.length === 0) {
+          await onPlanVariantSave({
+            name: 'Основной',
+            quarterId: selectedQuarterId,
+            teamId: selectedTeamId,
+            isExpress: viewMode === 'express',
+            isMain: true,
+          });
+        }
 
-      
-      // Создать основной вариант если его нет
-      if (currentVariants.length === 0) {
-        onPlanVariantSave({
-          name: 'Основной',
-          quarterId: selectedQuarterId,
-          teamId: selectedTeamId,
-          isExpress: viewMode === 'express',
-          isMain: true,
-        });
-      }
-
-            // Если это виртуальная задача, обновляем оригинальную задачу
-      if (isVirtualTask) {
-        // Это виртуальная задача, не создаем новую, а ищем оригинальную
-        const originalTask = tasks.find(t => t.id === baseTaskId);
-        if (originalTask) {
-          // Обновляем оригинальную задачу с новым состоянием для текущего варианта
+        // Если это виртуальная задача, обновляем оригинальную задачу
+        if (isVirtualTask) {
+          // Это виртуальная задача, не создаем новую, а ищем оригинальную
+          const originalTask = tasks.find(t => t.id === baseTaskId);
+          if (originalTask) {
+            // Обновляем оригинальную задачу с новым состоянием для текущего варианта
+            const updatedTask = {
+              ...originalTask,
+              planVariantId: selectedVariant.id,
+              isPlanned: isMovingToPlanned,
+              quarterId: isMovingToPlanned ? selectedQuarterId : undefined,
+              teamId: selectedTeamId,
+              updatedAt: new Date()
+            };
+            await onTaskEdit(updatedTask);
+          }
+        } else {
+          // Это реальная задача, обновляем её напрямую
           const updatedTask = {
-            ...originalTask,
+            ...activeTask,
             planVariantId: selectedVariant.id,
             isPlanned: isMovingToPlanned,
             quarterId: isMovingToPlanned ? selectedQuarterId : undefined,
             teamId: selectedTeamId,
             updatedAt: new Date()
           };
-          onTaskEdit(updatedTask);
+          await onTaskEdit(updatedTask);
         }
-      } else {
-        // Это реальная задача, обновляем её напрямую
-        const updatedTask = {
-          ...activeTask,
-          planVariantId: selectedVariant.id,
-          isPlanned: isMovingToPlanned,
-          quarterId: isMovingToPlanned ? selectedQuarterId : undefined,
-          teamId: selectedTeamId,
-          updatedAt: new Date()
-        };
-        onTaskEdit(updatedTask);
+      } catch (error) {
+        console.error('Ошибка при перемещении задачи:', error);
       }
     }
     

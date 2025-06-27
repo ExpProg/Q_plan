@@ -14,7 +14,7 @@ interface DraggableTableRowProps {
   isSelected: boolean;
   onToggleSelect: () => void;
   onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => void;
+  onDelete: (taskId: string) => Promise<void>;
   getTaskDetailedEstimate: (taskId: string) => number;
   viewMode: 'express' | 'detailed';
 }
@@ -54,9 +54,13 @@ export function DraggableTableRow({
     }).format(date);
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
+  const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    onDelete(task.id);
+    try {
+      await onDelete(task.id);
+    } catch (error) {
+      console.error('Ошибка при удалении задачи:', error);
+    }
   };
 
   const handleEdit = (e: React.MouseEvent) => {

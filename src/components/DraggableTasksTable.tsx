@@ -22,7 +22,7 @@ interface DraggableTasksTableProps {
   teams: Team[];
   quarters: Quarter[];
   onEdit: (task: Task) => void;
-  onDelete: (taskIds: string[]) => void;
+  onDelete: (taskIds: string[]) => Promise<void>;
   getTeamById: (teamId: string) => Team | undefined;
   getQuarterById: (quarterId: string) => Quarter | undefined;
   getTaskDetailedEstimate: (taskId: string) => number;
@@ -64,20 +64,28 @@ export function DraggableTasksTable({
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedTasks.size > 0) {
-      onDelete(Array.from(selectedTasks));
-      setSelectedTasks(new Set());
+      try {
+        await onDelete(Array.from(selectedTasks));
+        setSelectedTasks(new Set());
+      } catch (error) {
+        console.error('Ошибка при удалении задач:', error);
+      }
     }
   };
 
-  const handleSingleDelete = (taskId: string) => {
-    onDelete([taskId]);
-    setSelectedTasks(prev => {
-      const newSelection = new Set(prev);
-      newSelection.delete(taskId);
-      return newSelection;
-    });
+  const handleSingleDelete = async (taskId: string) => {
+    try {
+      await onDelete([taskId]);
+      setSelectedTasks(prev => {
+        const newSelection = new Set(prev);
+        newSelection.delete(taskId);
+        return newSelection;
+      });
+    } catch (error) {
+      console.error('Ошибка при удалении задачи:', error);
+    }
   };
 
   const taskIds = tasks.map(task => task.id);

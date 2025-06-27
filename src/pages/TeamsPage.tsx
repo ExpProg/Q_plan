@@ -18,19 +18,19 @@ interface TeamsPageProps {
   quarters: Quarter[];
   teamCapacities: TeamCapacity[];
   memberCapacities: MemberCapacity[];
-  onTeamSave: (team: Omit<Team, 'id'>) => void;
-  onTeamEdit: (team: Team) => void;
-  onTeamDelete?: (teamId: string) => void;
-  onRoleSave: (role: Omit<Role, 'id' | 'createdAt'>) => void;
-  onRoleEdit: (role: Role) => void;
-  onRoleDelete: (roleId: string) => void;
-  onMemberSave: (member: Omit<TeamMember, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onMemberEdit: (member: TeamMember) => void;
-  onMemberDelete: (memberId: string) => void;
-  onQuarterSave: (quarter: Omit<Quarter, 'id' | 'createdAt'>) => void;
-  onQuarterEdit: (quarter: Quarter) => void;
-  onTeamCapacitySave: (teamId: string, quarterId: string, capacity: number) => void;
-  onMemberCapacitySave: (memberId: string, quarterId: string, capacity: number) => void;
+  onTeamSave: (team: Omit<Team, 'id'>) => Promise<void>;
+  onTeamEdit: (team: Team) => Promise<void>;
+  onTeamDelete?: (teamId: string) => Promise<void>;
+  onRoleSave: (role: Omit<Role, 'id' | 'createdAt'>) => Promise<void>;
+  onRoleEdit: (role: Role) => Promise<void>;
+  onRoleDelete: (roleId: string) => Promise<void>;
+  onMemberSave: (member: Omit<TeamMember, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onMemberEdit: (member: TeamMember) => Promise<void>;
+  onMemberDelete: (memberId: string) => Promise<void>;
+  onQuarterSave: (quarter: Omit<Quarter, 'id' | 'createdAt'>) => Promise<void>;
+  onQuarterEdit: (quarter: Quarter) => Promise<void>;
+  onTeamCapacitySave: (teamId: string, quarterId: string, capacity: number) => Promise<void>;
+  onMemberCapacitySave: (memberId: string, quarterId: string, capacity: number) => Promise<void>;
   getRoleById: (roleId: string) => Role | undefined;
   getTeamCapacity: (teamId: string, quarterId: string) => number;
   getMemberCapacity: (memberId: string, quarterId: string) => number;
@@ -85,25 +85,28 @@ export function TeamsPage({
     return teamMembers.filter(member => member.teamId === teamId);
   };
 
-  const handleTeamSave = (teamData: Omit<Team, 'id'>) => {
-    if (editingTeam?.id) {
-      // Editing existing team
-      const updatedTeam: Team = {
-        ...editingTeam,
-        ...teamData,
-      };
-      onTeamEdit(updatedTeam);
-    } else {
-      // Creating new team
-      onTeamSave(teamData);
+  const handleTeamSave = async (teamData: Omit<Team, 'id'>) => {
+    try {
+      if (editingTeam?.id) {
+        // Editing existing team
+        const updatedTeam: Team = {
+          ...editingTeam,
+          ...teamData,
+        };
+        await onTeamEdit(updatedTeam);
+      } else {
+        // Creating new team
+        await onTeamSave(teamData);
+      }
+      setEditingTeam(undefined);
+      setTeamDialogOpen(false);
+    } catch (error) {
+      console.error('Ошибка сохранения команды:', error);
     }
-    setEditingTeam(undefined);
-    setTeamDialogOpen(false);
   };
 
   const handleTeamEdit = (team: Team) => {
     setEditingTeam(team);
-    onTeamEdit(team);
     setTeamDialogOpen(true);
   };
 
@@ -112,25 +115,28 @@ export function TeamsPage({
     setTeamDialogOpen(true);
   };
 
-  const handleRoleSave = (roleData: Omit<Role, 'id' | 'createdAt'>) => {
-    if (editingRole?.id) {
-      // Editing existing role
-      const updatedRole: Role = {
-        ...editingRole,
-        ...roleData,
-      };
-      onRoleEdit(updatedRole);
-    } else {
-      // Creating new role
-      onRoleSave(roleData);
+  const handleRoleSave = async (roleData: Omit<Role, 'id' | 'createdAt'>) => {
+    try {
+      if (editingRole?.id) {
+        // Editing existing role
+        const updatedRole: Role = {
+          ...editingRole,
+          ...roleData,
+        };
+        await onRoleEdit(updatedRole);
+      } else {
+        // Creating new role
+        await onRoleSave(roleData);
+      }
+      setEditingRole(undefined);
+      setRoleDialogOpen(false);
+    } catch (error) {
+      console.error('Ошибка сохранения роли:', error);
     }
-    setEditingRole(undefined);
-    setRoleDialogOpen(false);
   };
 
   const handleRoleEdit = (role: Role) => {
     setEditingRole(role);
-    onRoleEdit(role);
     setRoleDialogOpen(true);
   };
 
@@ -139,26 +145,29 @@ export function TeamsPage({
     setRoleDialogOpen(true);
   };
 
-  const handleMemberSave = (memberData: Omit<TeamMember, 'id' | 'createdAt' | 'updatedAt'>) => {
-    if (editingMember?.id) {
-      // Editing existing member
-      const updatedMember: TeamMember = {
-        ...editingMember,
-        ...memberData,
-        updatedAt: new Date(),
-      };
-      onMemberEdit(updatedMember);
-    } else {
-      // Creating new member
-      onMemberSave(memberData);
+  const handleMemberSave = async (memberData: Omit<TeamMember, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      if (editingMember?.id) {
+        // Editing existing member
+        const updatedMember: TeamMember = {
+          ...editingMember,
+          ...memberData,
+          updatedAt: new Date(),
+        };
+        await onMemberEdit(updatedMember);
+      } else {
+        // Creating new member
+        await onMemberSave(memberData);
+      }
+      setEditingMember(undefined);
+      setMemberDialogOpen(false);
+    } catch (error) {
+      console.error('Ошибка сохранения участника:', error);
     }
-    setEditingMember(undefined);
-    setMemberDialogOpen(false);
   };
 
   const handleMemberEdit = (member: TeamMember) => {
     setEditingMember(member);
-    onMemberEdit(member);
     setMemberDialogOpen(true);
   };
 
@@ -174,25 +183,28 @@ export function TeamsPage({
     setMemberDialogOpen(true);
   };
 
-  const handleQuarterSave = (quarterData: Omit<Quarter, 'id' | 'createdAt'>) => {
-    if (editingQuarter?.id) {
-      // Editing existing quarter
-      const updatedQuarter: Quarter = {
-        ...editingQuarter,
-        ...quarterData,
-      };
-      onQuarterEdit(updatedQuarter);
-    } else {
-      // Creating new quarter
-      onQuarterSave(quarterData);
+  const handleQuarterSave = async (quarterData: Omit<Quarter, 'id' | 'createdAt'>) => {
+    try {
+      if (editingQuarter?.id) {
+        // Editing existing quarter
+        const updatedQuarter: Quarter = {
+          ...editingQuarter,
+          ...quarterData,
+        };
+        await onQuarterEdit(updatedQuarter);
+      } else {
+        // Creating new quarter
+        await onQuarterSave(quarterData);
+      }
+      setEditingQuarter(undefined);
+      setQuarterDialogOpen(false);
+    } catch (error) {
+      console.error('Ошибка сохранения квартала:', error);
     }
-    setEditingQuarter(undefined);
-    setQuarterDialogOpen(false);
   };
 
   const handleQuarterEdit = (quarter: Quarter) => {
     setEditingQuarter(quarter);
-    onQuarterEdit(quarter);
     setQuarterDialogOpen(true);
   };
 
